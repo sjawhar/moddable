@@ -83,8 +83,8 @@ int main(int argc, char* argv[])
 			if (srcSize != dstSize) { error = errno; goto END; };
 		}
 	END:
-		if (dst)
-			fclose(dst);
+		if (dst && fclose(dst) && !error)
+			error = errno;
 		if (src)
 			fclose(src);
 #endif
@@ -179,8 +179,8 @@ void FILE_prototype_close(xsMachine* the)
 {
 	FILE* file = xsGetHostData(xsThis);
 	if (file) {
-		fclose(file);
 		xsSetHostData(xsThis, NULL);
+		xsElseThrow(fclose(file) == 0);
 	}
 }
 
@@ -230,7 +230,8 @@ void FILE_prototype_write(xsMachine* the)
 	for (i = 0; i < c; i++) {
 		char* buffer = xsToString(xsArg(0));
 		size_t size = strlen(buffer);
-		total += fwrite(buffer, 1, size, file);		
+		xsElseThrow(fwrite(buffer, 1, size, file) == size);
+		total += size;
 	}
 	xsResult = xsInteger(total);
 }
@@ -240,7 +241,7 @@ void FILE_prototype_writeBuffer(xsMachine* the)
 	FILE* file = xsGetHostData(xsThis);
 	char* buffer = xsToArrayBuffer(xsArg(0));
 	size_t size = xsGetArrayBufferLength(xsArg(0));
-	size = fwrite(buffer, 1, size, file);		
+	xsElseThrow(fwrite(buffer, 1, size, file) == size);
 	xsResult = xsInteger(size);
 }
 
@@ -248,8 +249,8 @@ void FILE_prototype_writeByte(xsMachine* the)
 {
 	FILE* file = xsGetHostData(xsThis);
 	unsigned char value = (unsigned char)xsToInteger(xsArg(0));
-	size_t size = fwrite(&value, 1, 1, file);		
-	xsResult = xsInteger(size);
+	xsElseThrow(fwrite(&value, 1, 1, file) == 1);
+	xsResult = xsInteger(1);
 }
 
 void FILE_prototype_writeString(xsMachine* the)
@@ -257,7 +258,7 @@ void FILE_prototype_writeString(xsMachine* the)
 	FILE* file = xsGetHostData(xsThis);
 	char* buffer = xsToString(xsArg(0));
 	size_t size = strlen(buffer);
-	size = fwrite(buffer, 1, size, file);		
+	xsElseThrow(fwrite(buffer, 1, size, file) == size);
 	xsResult = xsInteger(size);
 }
 
@@ -882,11 +883,14 @@ void Tool_prototype_writeFileString(xsMachine* the)
 	char* buffer = xsToString(xsArg(1));
 	size_t size = strlen(buffer);
 	FILE* file = NULL;
+	int result;
 	xsTry {
 		file = fopen(path, "w");
 		xsElseThrow(file);
-		fwrite(buffer, 1, size, file);		
-		fclose(file);
+		xsElseThrow(fwrite(buffer, 1, size, file) == size);
+		result = fclose(file);
+		file = NULL;
+		xsElseThrow(result == 0);
 	}
 	xsCatch {
 		if (file)
@@ -901,11 +905,14 @@ void Tool_prototype_writeFileBuffer(xsMachine* the)
 	char* buffer = xsToArrayBuffer(xsArg(1));
 	size_t size = xsGetArrayBufferLength(xsArg(1));
 	FILE* file = NULL;
+	int result;
 	xsTry {
 		file = fopen(path, "wb");
 		xsElseThrow(file);
-		fwrite(buffer, 1, size, file);		
-		fclose(file);
+		xsElseThrow(fwrite(buffer, 1, size, file) == size);
+		result = fclose(file);
+		file = NULL;
+		xsElseThrow(result == 0);
 	}
 	xsCatch {
 		if (file)
